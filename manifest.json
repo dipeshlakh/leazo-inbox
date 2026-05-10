@@ -2,7 +2,7 @@
   "name": "Leazo Inbox",
   "short_name": "Leazo",
   "description": "Leazo WhatsApp Business Inbox",
-  "start_url": "/whatsapp-inbox.html",
+  "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#075E54",
