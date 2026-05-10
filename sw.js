@@ -3,7 +3,7 @@
 
 const CACHE    = 'leazo-inbox-v1';
 const PRECACHE = [
-  '/whatsapp-inbox.html',
+  '/',
   'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Anton&display=swap',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
 ];
