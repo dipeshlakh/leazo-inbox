@@ -392,12 +392,14 @@ html,body{height:100%;height:100dvh;overflow:hidden;font-family:'DM Sans',sans-s
       <input type="text" id="ncName" placeholder="e.g. Rahul Sharma"/>
       <label>Phone Number</label>
       <input type="tel" id="ncPhone" placeholder="91XXXXXXXXXX (with country code)"/>
-      <label>First Message (optional)</label>
-      <textarea id="ncMsg" placeholder="Hi! Welcome to Leazo..." rows="3" style="resize:none"></textarea>
+      <p style="font-size:12.5px;color:var(--text2);line-height:1.5;margin-top:-4px">
+        This adds the contact to your inbox. Since they haven't messaged you yet,
+        you'll need to send an approved template message to start the conversation.
+      </p>
     </div>
     <div class="modal-foot">
       <button class="btn-cancel" onclick="closeModal('newChatModal')">Cancel</button>
-      <button class="btn-primary" onclick="createChat()">Start Chat &rarr;</button>
+      <button class="btn-primary" onclick="createChat()">Add Contact &rarr;</button>
     </div>
   </div>
 </div>
@@ -858,7 +860,12 @@ async function loadBooking(phone){
   if(data){
     bar.style.display='flex';
     document.getElementById('bookingText').textContent=`${data.plan} · ${data.booking_date} · Rs.${data.total_amount} · ${data.operator_status} · Ref: ${data.reference_number}`;
-    document.getElementById('ipBooking').innerHTML=`<b>${data.plan}</b><br>${data.booking_date}<br>Rs.${data.total_amount} · ${data.operator_status}<br><span style="color:var(--text3)">Ref: ${data.reference_number}</span>`;
+    let bookingHtml=`<b>${data.plan}</b><br>${data.booking_date}<br>Rs.${data.total_amount} · ${data.operator_status}<br><span style="color:var(--text3)">Ref: ${data.reference_number}</span>`;
+    if(data.location_lat&&data.location_lng){
+      const mapsLink=`https://maps.google.com/?q=${data.location_lat},${data.location_lng}`;
+      bookingHtml+=`<br><a href="${mapsLink}" target="_blank" style="color:var(--blue);font-weight:600;display:inline-flex;align-items:center;gap:4px;margin-top:6px">&#128205; Delivery Location${data.location_address?': '+esc(data.location_address):''}</a>`;
+    }
+    document.getElementById('ipBooking').innerHTML=bookingHtml;
   }else{
     bar.style.display='none';
     document.getElementById('ipBooking').textContent='No bookings found';
@@ -866,6 +873,15 @@ async function loadBooking(phone){
 }
 
 function renderMsgs(msgs){
+  if(!msgs||!msgs.length){
+    document.getElementById('msgArea').innerHTML=
+      `<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--text2);gap:8px;height:100%">
+        <div style="font-size:40px;opacity:.4">&#128172;</div>
+        <p style="font-size:13.5px">No messages yet</p>
+        <p style="font-size:12px;color:var(--text3)">Send a template to start the conversation</p>
+      </div>`;
+    return;
+  }
   let lastDate=null;
   msgs.forEach(m=>{
     const d=new Date(m.sent_at).toDateString();
@@ -900,14 +916,31 @@ function buildBubbleContent(msg){
     c+=`<div class="media-doc" onclick="window.open('${msg.media_url}','_blank')"><div class="doc-icon">&#128196;</div><div><div class="doc-name">${esc(msg.media_name||'Document')}</div><div class="doc-meta">${msg.media_mime||''}</div></div></div>`;
   else if(msg.media_type==='sticker'&&msg.media_url)
     c+=`<img class="media-img" src="${msg.media_url}" alt="Sticker" style="max-width:120px"/>`;
-  if(msg.message){
+
+  if(msg.media_type==='location'&&msg.message){
+    // Special rendering for location messages — extract maps link and show a button
+    const mapsMatch=msg.message.match(/https:\/\/maps\.google\.com\/\?q=([\d.\-]+),([\d.\-]+)/);
+    const textOnly=msg.message.replace(/https:\/\/maps\.google\.com\/\?q=[\d.,\-]+/,'').trim();
+    if(textOnly)c+=`<p style="white-space:pre-wrap;margin-bottom:6px">${esc(textOnly)}</p>`;
+    if(mapsMatch){
+      c+=`<a href="${mapsMatch[0]}" target="_blank" class="location-bubble" style="display:flex;align-items:center;gap:8px;background:rgba(0,0,0,.05);border-radius:8px;padding:10px;text-decoration:none;color:inherit">
+        <span style="font-size:24px">&#128205;</span>
+        <div>
+          <div style="font-weight:600;font-size:13px">View Location</div>
+          <div style="font-size:11.5px;color:var(--text2)">${mapsMatch[1]}, ${mapsMatch[2]}</div>
+        </div>
+      </a>`;
+    }
+  }else if(msg.message){
     // Friendlier display for raw [type] placeholders from older webhook versions
     let displayMsg=msg.message;
     const bracketMatch=displayMsg.match(/^\[(\w+)\]$/);
     if(bracketMatch){
       displayMsg='📵 Unsupported message (poll, view-once, or call)';
     }
-    c+=`<p style="white-space:pre-wrap">${esc(displayMsg)}</p>`;
+    // Auto-link http(s) URLs
+    const linked=esc(displayMsg).replace(/(https?:\/\/[^\s]+)/g,'<a href="$1" target="_blank" style="color:inherit;text-decoration:underline">$1</a>');
+    c+=`<p style="white-space:pre-wrap">${linked}</p>`;
   }
   let ticks='';
   if(isOut){
@@ -1244,26 +1277,44 @@ async function toggleResolve(){
 async function createChat(){
   const name=document.getElementById('ncName').value.trim();
   const phone=document.getElementById('ncPhone').value.trim().replace(/\D/g,'');
-  const msg=document.getElementById('ncMsg').value.trim();
   if(!phone){toast('Phone number is required');return;}
-  let{data:existing}=await db.from('conversations').select('id').eq('customer_phone',phone.replace(/^91/,'')).maybeSingle();
-  if(!existing){
-    const wa_id=phone.startsWith('91')?phone:'91'+phone;
-    const{data:nc}=await db.from('conversations').insert({
-      customer_name:name||phone,customer_phone:phone.replace(/^91/,''),
-      wa_contact_id:wa_id,last_message:msg||'',
-      last_message_time:new Date().toISOString(),unread_count:0,resolved:false,
-    }).select().single();
-    existing=nc;
+  if(phone.length<10){toast('Enter a valid phone number');return;}
+  if(!name){toast('Customer name is required');return;}
+
+  const phone10=phone.replace(/^91/,'');
+  let{data:existing}=await db.from('conversations').select('id').eq('customer_phone',phone10).maybeSingle();
+
+  if(existing){
+    closeModal('newChatModal');
+    document.getElementById('ncName').value='';
+    document.getElementById('ncPhone').value='';
+    await loadConvs();
+    await openConv(existing.id);
+    toast('Contact already exists — opened their conversation');
+    return;
   }
+
+  const wa_id=phone.startsWith('91')?phone:'91'+phone;
+  const{data:nc,error}=await db.from('conversations').insert({
+    customer_name:name,
+    customer_phone:phone10,
+    wa_contact_id:wa_id,
+    last_message:'',
+    last_message_time:new Date().toISOString(),
+    unread_count:0,
+    resolved:false,
+  }).select().single();
+
+  if(error){toast('Failed to add contact: '+error.message);return;}
+
   closeModal('newChatModal');
   document.getElementById('ncName').value='';
   document.getElementById('ncPhone').value='';
-  document.getElementById('ncMsg').value='';
   await loadConvs();
-  if(existing){
-    await openConv(existing.id);
-    if(msg){document.getElementById('msgInput').value=msg;sendMessage();}
+
+  if(nc){
+    await openConv(nc.id);
+    toast('Contact added. Send a template to start the conversation.');
   }
 }
 
