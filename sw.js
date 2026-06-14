@@ -1,7 +1,7 @@
 // Leazo Inbox — Service Worker
 // Caches the app shell + handles push notifications
 
-const CACHE    = 'leazo-inbox-v3';
+const CACHE    = 'leazo-inbox-v5';
 const PRECACHE = [
   '/',
   '/index.html',
