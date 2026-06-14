@@ -1,9 +1,10 @@
 // Leazo Inbox — Service Worker
 // Caches the app shell + handles push notifications
 
-const CACHE    = 'leazo-inbox-v2';
+const CACHE    = 'leazo-inbox-v3';
 const PRECACHE = [
-  '/whatsapp-inbox.html',
+  '/',
+  '/index.html',
   'https://fonts.googleapis.com/css2?family=Anton&family=DM+Sans:wght@400;500;600;700&display=swap',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
 ];
@@ -72,7 +73,7 @@ self.addEventListener('push', e => {
     renotify: true,
     data: {
       conversationId: data.conversationId || null,
-      url: data.url || '/whatsapp-inbox.html',
+      url: data.url || '/',
     },
     vibrate: [200, 100, 200],
   };
@@ -102,14 +103,14 @@ self.addEventListener('push', e => {
 self.addEventListener('notificationclick', e => {
   e.notification.close();
 
-  const targetUrl = e.notification.data?.url || '/whatsapp-inbox.html';
+  const targetUrl = e.notification.data?.url || '/';
 
   e.waitUntil(
     (async () => {
       const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
 
       for (const client of clients) {
-        if (client.url.includes('whatsapp-inbox.html') && 'focus' in client) {
+        if ((client.url.includes('index.html') || client.url.endsWith('/') || client.url.endsWith('leazo.in')) && 'focus' in client) {
           client.postMessage({
             type: 'OPEN_CONVERSATION',
             conversationId: e.notification.data?.conversationId || null,
