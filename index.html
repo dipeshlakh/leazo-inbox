@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"/>
 <title>Leazo Inbox</title>
 
 <!-- PWA: makes it installable on Android/iOS home screen -->
@@ -28,27 +28,27 @@
   --input-bg:#f0f2f5;--toolbar:#f0f2f5;
   --shadow:0 1px 3px rgba(0,0,0,.12);
 }
-html,body{height:100%;overflow:hidden;font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);font-size:14px}
-#loginScreen{position:fixed;inset:0;z-index:999;display:flex;align-items:center;justify-content:center;background:var(--teal)}
-#app{display:flex;height:100vh;overflow:hidden}
+html,body{height:100%;height:100dvh;overflow:hidden;font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);font-size:14px;position:fixed;width:100%}
+#loginScreen{position:fixed;inset:0;z-index:999;display:flex;align-items:center;justify-content:center;background:var(--teal);padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
+#app{display:flex;height:100vh;height:100dvh;overflow:hidden}
 .sidebar{width:420px;min-width:320px;max-width:420px;display:flex;flex-direction:column;background:var(--sidebar-bg);border-right:1px solid var(--border);flex-shrink:0}
 .main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
 .login-box{background:#fff;border-radius:16px;padding:40px 36px;width:340px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.18)}
 .login-box .logo{font-family:'Anton',sans-serif;font-size:36px;letter-spacing:4px;color:var(--teal);margin-bottom:4px}
 .login-box p{color:var(--text2);font-size:13px;margin-bottom:28px}
-.login-box input{width:100%;border:1.5px solid var(--border);border-radius:10px;padding:12px 16px;font-size:14px;font-family:inherit;outline:none;transition:border .2s;margin-bottom:14px}
+.login-box input{width:100%;border:1.5px solid var(--border);border-radius:10px;padding:12px 16px;font-size:16px;font-family:inherit;outline:none;transition:border .2s;margin-bottom:14px}
 .login-box input:focus{border-color:var(--teal)}
 .login-box button{width:100%;background:var(--teal);color:#fff;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:600;cursor:pointer}
 .login-box button:hover{background:var(--green-dark)}
 .login-err{color:#e53e3e;font-size:12px;margin-top:8px}
-.sb-header{display:flex;align-items:center;gap:10px;padding:10px 16px;background:var(--toolbar);border-bottom:1px solid var(--border);flex-shrink:0}
+.sb-header{display:flex;align-items:center;gap:10px;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;background:var(--toolbar);border-bottom:1px solid var(--border);flex-shrink:0}
 .sb-logo{font-family:'Anton',sans-serif;font-size:18px;letter-spacing:2px;color:var(--teal)}
 .sb-badge{background:var(--teal);color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px}
 .icon-btn{background:none;border:none;cursor:pointer;color:var(--text2);width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:background .15s;font-size:18px;flex-shrink:0}
 .icon-btn:hover{background:var(--hover)}
 .sb-search{padding:8px 12px;border-bottom:1px solid var(--border);flex-shrink:0}
 .search-wrap{display:flex;align-items:center;gap:8px;background:var(--input-bg);border-radius:10px;padding:8px 12px}
-.search-wrap input{border:none;background:transparent;outline:none;font-family:inherit;font-size:13.5px;flex:1;color:var(--text)}
+.search-wrap input{border:none;background:transparent;outline:none;font-family:inherit;font-size:16px;flex:1;color:var(--text)}
 .search-wrap input::placeholder{color:var(--text3)}
 .sb-tabs{display:flex;gap:4px;padding:8px 12px;border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none;flex-shrink:0}
 .sb-tabs::-webkit-scrollbar{display:none}
@@ -72,7 +72,7 @@ html,body{height:100%;overflow:hidden;font-family:'Inter',sans-serif;background:
 .empty-state .eico{font-size:64px;opacity:.4}
 .empty-state h3{font-size:18px;font-weight:500;color:var(--text)}
 .empty-state p{font-size:13.5px;text-align:center;max-width:280px;line-height:1.6}
-.chat-header{display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--toolbar);border-bottom:1px solid var(--border);flex-shrink:0}
+.chat-header{display:flex;align-items:center;gap:12px;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;background:var(--toolbar);border-bottom:1px solid var(--border);flex-shrink:0}
 .chat-header .conv-avatar{width:40px;height:40px;font-size:15px;cursor:pointer}
 .chat-header-info{flex:1;min-width:0;cursor:pointer}
 .chat-header-name{font-weight:600;font-size:15px}
@@ -121,7 +121,7 @@ html,body{height:100%;overflow:hidden;font-family:'Inter',sans-serif;background:
 .emoji-react-bar{position:fixed;z-index:501;background:#fff;border-radius:28px;padding:6px 10px;box-shadow:0 2px 14px rgba(0,0,0,.22);display:flex;gap:4px;animation:popIn .1s ease}
 .er-opt{font-size:24px;cursor:pointer;transition:transform .1s;line-height:1;padding:2px}
 .er-opt:hover{transform:scale(1.35)}
-.input-area{background:var(--toolbar);border-top:1px solid var(--border);flex-shrink:0}
+.input-area{background:var(--toolbar);border-top:1px solid var(--border);flex-shrink:0;padding-bottom:env(safe-area-inset-bottom)}
 .reply-bar{display:flex;align-items:center;gap:10px;padding:8px 16px;background:#f5f7f9;border-bottom:1px solid var(--border)}
 .reply-bar-inner{flex:1;min-width:0}
 .rbi-name{font-size:12px;font-weight:700;color:var(--green-dark);margin-bottom:2px}
@@ -136,7 +136,7 @@ html,body{height:100%;overflow:hidden;font-family:'Inter',sans-serif;background:
 .input-row{display:flex;align-items:flex-end;gap:8px;padding:10px 16px}
 .att-btn{background:none;border:none;cursor:pointer;color:var(--text2);font-size:22px;padding:4px;flex-shrink:0;line-height:1}
 .att-btn:hover{color:var(--teal)}
-.msg-input{flex:1;border:none;background:var(--input-bg);border-radius:24px;padding:9px 16px;font-size:14px;font-family:inherit;outline:none;resize:none;max-height:160px;line-height:1.5;color:var(--text)}
+.msg-input{flex:1;border:none;background:var(--input-bg);border-radius:24px;padding:9px 16px;font-size:16px;font-family:inherit;outline:none;resize:none;max-height:160px;line-height:1.5;color:var(--text)}
 .msg-input::placeholder{color:var(--text3)}
 .send-btn{width:42px;height:42px;background:var(--teal);border:none;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;font-size:18px;flex-shrink:0}
 .send-btn:hover{background:var(--green-dark)}
@@ -152,7 +152,7 @@ html,body{height:100%;overflow:hidden;font-family:'Inter',sans-serif;background:
 .modal-hdr h3{font-size:16px;font-weight:600}
 .modal-body{padding:20px;overflow-y:auto}
 .modal-body label{display:block;font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
-.modal-body input,.modal-body textarea{width:100%;border:1.5px solid var(--border);border-radius:10px;padding:10px 14px;font-size:14px;font-family:inherit;outline:none;transition:border .2s;color:var(--text);margin-bottom:16px}
+.modal-body input,.modal-body textarea{width:100%;border:1.5px solid var(--border);border-radius:10px;padding:10px 14px;font-size:16px;font-family:inherit;outline:none;transition:border .2s;color:var(--text);margin-bottom:16px}
 .modal-body input:focus,.modal-body textarea:focus{border-color:var(--teal)}
 .modal-foot{padding:0 20px 20px;display:flex;gap:10px;justify-content:flex-end;flex-shrink:0}
 .btn-cancel{background:none;border:1.5px solid var(--border);border-radius:10px;padding:9px 20px;font-size:13.5px;cursor:pointer;font-family:inherit}
