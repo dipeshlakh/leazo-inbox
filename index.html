@@ -42,6 +42,9 @@ html,body{height:100%;height:100dvh;overflow:hidden;font-family:'DM Sans',sans-s
 .login-box button{width:100%;background:var(--blue);color:#fff;border:none;border-radius:12px;padding:14px;font-size:14px;font-weight:700;cursor:pointer;transition:background .15s}
 .login-box button:hover{background:#2c2dc4}
 .login-err{color:#e53e3e;font-size:12px;margin-top:8px}
+.remember-row{display:flex;align-items:center;justify-content:flex-start;gap:8px;margin:-4px 0 14px;cursor:pointer;font-size:13px;color:var(--text2);user-select:none;text-align:left}
+.remember-row input[type="checkbox"]{width:16px;height:16px;margin:0;accent-color:var(--blue);cursor:pointer;flex-shrink:0;vertical-align:middle}
+.remember-row span{line-height:1;display:inline-block}
 .sb-header{display:flex;align-items:center;gap:10px;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;background:var(--yellow);border-bottom:4px solid var(--blue);flex-shrink:0}
 .sb-logo{font-family:'Anton',sans-serif;font-style:italic;font-size:19px;letter-spacing:3px;color:#000}
 .sb-badge{background:var(--blue);color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;letter-spacing:.5px}
@@ -216,6 +219,10 @@ html,body{height:100%;height:100dvh;overflow:hidden;font-family:'DM Sans',sans-s
     <div class="logo">LEAZO</div>
     <div class="tagline">Chat Inbox</div>
     <input id="passInput" type="password" placeholder="Enter password" autocomplete="current-password"/>
+    <label class="remember-row">
+      <input type="checkbox" id="rememberMe" checked/>
+      <span>Keep me logged in</span>
+    </label>
     <button onclick="checkLogin()">Login &rarr;</button>
     <div id="loginErr" class="login-err" style="display:none">Incorrect password</div>
   </div>
@@ -541,8 +548,10 @@ function checkLogin(){
   const p=document.getElementById('passInput').value.trim();
   if(PASSWORDS[p]){
     currentRole=PASSWORDS[p];
-    sessionStorage.setItem('lz_auth','1');
-    sessionStorage.setItem('lz_role',currentRole);
+    const remember=document.getElementById('rememberMe').checked;
+    const store=remember?localStorage:sessionStorage;
+    store.setItem('lz_auth','1');
+    store.setItem('lz_role',currentRole);
     document.getElementById('loginScreen').style.display='none';
     document.getElementById('app').style.display='flex';
     boot();
@@ -552,9 +561,14 @@ function checkLogin(){
     setTimeout(()=>err.style.display='none',2500);
   }
 }
-function logout(){sessionStorage.removeItem('lz_auth');sessionStorage.removeItem('lz_role');location.reload();}
-if(sessionStorage.getItem('lz_auth')){
-  currentRole=sessionStorage.getItem('lz_role')||'operator';
+function logout(){
+  sessionStorage.removeItem('lz_auth');sessionStorage.removeItem('lz_role');
+  localStorage.removeItem('lz_auth');localStorage.removeItem('lz_role');
+  location.reload();
+}
+// Check both localStorage (persistent) and sessionStorage (this-session only)
+if(localStorage.getItem('lz_auth')||sessionStorage.getItem('lz_auth')){
+  currentRole=localStorage.getItem('lz_role')||sessionStorage.getItem('lz_role')||'operator';
   document.getElementById('loginScreen').style.display='none';
   document.getElementById('app').style.display='flex';
   boot();
