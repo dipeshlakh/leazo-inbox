@@ -1,5 +1,5 @@
 {
-  "name": "Leazo Inbox",
+  "name": "LZ-Inbox",
   "short_name": "Leazo",
   "description": "Leazo WhatsApp Business Inbox",
   "start_url": "/index.html",
@@ -9,13 +9,13 @@
   "theme_color": "#FFD345",
   "icons": [
     {
-      "src": "icon-192.png",
+      "src": "leazo-inbox.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "icon-512.png",
+      "src": "leazo-inbox.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
