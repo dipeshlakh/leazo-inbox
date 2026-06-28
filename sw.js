@@ -67,8 +67,8 @@ self.addEventListener('push', e => {
   const title = data.title || 'Leazo Inbox';
   const options = {
     body: data.body || 'New message received',
-    icon: '/icon-192.png',
-    badge: '/icon-192.png',
+    icon: '/leazo-inbox.png',
+    badge: '/leazo-inbox.png',
     tag: data.conversationId ? `conv-${data.conversationId}` : 'leazo-msg',
     renotify: true,
     data: {
