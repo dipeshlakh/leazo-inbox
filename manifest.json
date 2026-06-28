@@ -1,6 +1,6 @@
 {
   "name": "LZ-Inbox",
-  "short_name": "Leazo",
+  "short_name": "Inbox-Leazo",
   "description": "Leazo WhatsApp Business Inbox",
   "start_url": "/index.html",
   "display": "standalone",
