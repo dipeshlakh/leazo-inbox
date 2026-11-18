@@ -14,7 +14,7 @@
 <link rel="manifest" href="manifest.json"/>
 
 <!-- iOS home screen icon (create a 192x192 PNG of your logo) -->
-<link rel="apple-touch-icon" href="leazo-inbox.png"/>
+<link rel="apple-touch-icon" href="icon-192.png"/>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
@@ -83,6 +83,11 @@ html,body{height:100%;height:100dvh;overflow:hidden;font-family:'DM Sans',sans-s
 .chat-header-name{font-weight:700;font-size:15px;color:#111827}
 .chat-header-sub{font-size:12.5px;color:var(--text2)}
 .chat-header-actions{display:flex;gap:2px;flex-shrink:0}
+.attn-bar{background:#fef2f2;border-bottom:1px solid #fecaca;padding:8px 16px;font-size:12.5px;color:#b91c1c;font-weight:700;display:flex;align-items:center;gap:8px;flex-shrink:0}
+.attn-tag{font-size:10.5px;color:#b91c1c;font-weight:700;flex-shrink:0}
+.btn-danger-sm{background:#dc2626;color:#fff;border:none;border-radius:8px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;margin-left:auto;white-space:nowrap}
+.fwd-item.disabled{opacity:.5}
+.fwd-note{font-size:11px;color:#b91c1c;margin-left:auto}
 .booking-bar{background:#eff6ff;border-bottom:1px solid #dbeafe;padding:8px 16px;font-size:12.5px;color:var(--blue);font-weight:600;display:flex;align-items:center;gap:6px;flex-shrink:0}
 .msg-area{flex:1;overflow-y:auto;padding:16px 6%;display:flex;flex-direction:column;gap:8px;background:var(--chat-bg);scrollbar-width:thin}
 .date-sep{text-align:center;margin:10px 0;flex-shrink:0}
@@ -279,6 +284,11 @@ html,body{height:100%;height:100dvh;overflow:hidden;font-family:'DM Sans',sans-s
       </div>
       <div class="booking-bar" id="bookingBar" style="display:none">
         &#128230; <span id="bookingText"></span>
+        <button class="btn-danger-sm" id="cancelBookingBtn" style="display:none" onclick="cancelBooking()">Cancel this booking</button>
+      </div>
+      <div class="attn-bar" id="attnBar" style="display:none">
+        &#9888;&#65039; <span>Customer tapped <b>Cancel</b> on the booking. Please call and confirm.</span>
+        <button class="btn-danger-sm" id="attnCancelBtn" style="display:none" onclick="cancelBooking()">Cancel this booking</button>
       </div>
       <div class="msg-area" id="msgArea"></div>
       <div class="input-area" style="position:relative">
@@ -542,6 +552,33 @@ const db=window.supabase.createClient(SB_URL,SB_ANON);
 let allConvs=[],currentConv=null,currentFilter='all';
 let replyingTo=null,fwdMsgId=null,selTplId=null;
 let ctxMsgId=null,pendingFile=null,uploadMtype='image';
+let currentBooking=null,currentWindowOpen=true;
+
+// Phone rules: customer_phone = 10 digits, wa_contact_id = '91' + 10 digits
+function to10(p){const d=String(p||'').replace(/\D/g,'');return d.length>10?d.slice(-10):d;}
+function toWaId(p){return '91'+to10(p);}
+
+// Plain-words booking progress (bookings.fulfillment_status)
+const STATUS_LABELS={
+  pending_assignment:'Waiting for a partner',assigned:'Partner assigned',accepted:'Partner accepted',
+  packed_scanned:'Packed and scanned',out_for_delivery:'Out for delivery',reached_customer:'Partner reached the customer',
+  items_verified_delivery:'Items checked at delivery',bundle_photo_done:'Package photo taken',
+  condition_ack_delivery:'Condition confirmed',id_verified:'ID verified',payment_collected:'Payment collected',
+  otp_verified_delivery:'Delivery OTP verified',delivered:'Delivered',active_rental:'Rental in progress',
+  return_window_open:'Return window open',out_for_pickup:'Out for pickup',reached_pickup:'Partner reached for pickup',
+  items_verified_return:'Items checked on return',condition_photo_return:'Return condition checked',
+  otp_verified_return:'Return OTP verified',completed:'Completed',rated:'Completed',
+  rejected:'Partner rejected, needs reassigning',dispute_flagged:'Dispute raised',cancelled:'Cancelled'
+};
+function statusLabel(st){
+  if(!st)return 'Status not set';
+  if(STATUS_LABELS[st])return STATUS_LABELS[st];
+  const t=String(st).replace(/_/g,' ');return t.charAt(0).toUpperCase()+t.slice(1);
+}
+function fmtIST(ts){
+  if(!ts)return '';
+  return toUTC(ts).toLocaleString('en-IN',{timeZone:'Asia/Kolkata',day:'numeric',month:'short',hour:'numeric',minute:'2-digit',hour12:true});
+}
 let currentRole='operator';
 const audioPlayers={};
 
@@ -733,6 +770,7 @@ async function loadConvs(){
   const{data,error}=await db.from('conversations').select('*').order('last_message_time',{ascending:false});
   if(error){console.error(error);return;}
   allConvs=data||[];
+  if(currentConv){const fresh=allConvs.find(c=>c.id===currentConv.id);if(fresh){currentConv=fresh;renderAttention();}}
   document.getElementById('liveBtn').title=`${allConvs.length} chats`;
   renderConvs();
 }
@@ -771,6 +809,7 @@ function renderConvs(){
         <div class="conv-bottom">
           <span class="conv-preview">${esc(prev)||'&mdash;'}</span>
           ${c.unread_count?`<span class="unread-badge">${c.unread_count}</span>`:''}
+          ${c.needs_attention?'<span class="attn-tag">&#9888; Cancel?</span>':''}
           ${c.resolved?'<span class="resolved-tag">&#10003; Done</span>':''}
         </div>
       </div>
@@ -836,6 +875,7 @@ function check24HourWindow(msgs){
     windowOpen=hoursElapsed<24;
   }
 
+  currentWindowOpen=windowOpen;
   if(windowOpen){
     inputRow.style.display='flex';
     closedBar.style.display='none';
@@ -853,14 +893,29 @@ function goBack(){
   document.getElementById('mainPanel').classList.add('mh');
   currentConv=null;
 }
+function renderAttention(){
+  const bar=document.getElementById('attnBar');
+  if(!bar)return;
+  const on=!!(currentConv&&currentConv.needs_attention);
+  bar.style.display=on?'flex':'none';
+  const canCancel=currentRole==='admin'&&currentBooking&&currentBooking.fulfillment_status!=='cancelled';
+  document.getElementById('attnCancelBtn').style.display=(on&&canCancel)?'inline-block':'none';
+  // the always-visible admin button in the booking bar is hidden while the red banner has its own
+  document.getElementById('cancelBookingBtn').style.display=(!on&&canCancel)?'inline-block':'none';
+}
 async function loadBooking(phone){
-  const phone10=(phone||'').replace(/^91/,'');
+  const phone10=to10(phone);
   const{data}=await db.from('bookings').select('*').eq('phone',phone10).order('created_at',{ascending:false}).limit(1).maybeSingle();
+  currentBooking=data||null;
   const bar=document.getElementById('bookingBar');
   if(data){
+    const st=statusLabel(data.fulfillment_status);
     bar.style.display='flex';
-    document.getElementById('bookingText').textContent=`${data.plan} · ${data.booking_date} · Rs.${data.total_amount} · ${data.operator_status} · Ref: ${data.reference_number}`;
-    let bookingHtml=`<b>${data.plan}</b><br>${data.booking_date}<br>Rs.${data.total_amount} · ${data.operator_status}<br><span style="color:var(--text3)">Ref: ${data.reference_number}</span>`;
+    document.getElementById('bookingText').textContent=`${data.plan} · ${data.booking_date} · Rs.${data.total_amount} · ${st} · Ref: ${data.reference_number}`;
+    let bookingHtml=`<b>${esc(data.plan)}</b><br>${esc(data.booking_date)}<br>Rs.${esc(data.total_amount)} · <b>${esc(st)}</b><br>`;
+    if(data.delivery_at)bookingHtml+=`Delivery: ${esc(fmtIST(data.delivery_at))}<br>`;
+    if(data.pickup_at)bookingHtml+=`Pickup: ${esc(fmtIST(data.pickup_at))}<br>`;
+    bookingHtml+=`<span style="color:var(--text3)">Ref: ${esc(data.reference_number)}</span>`;
     if(data.location_lat&&data.location_lng){
       const mapsLink=`https://maps.google.com/?q=${data.location_lat},${data.location_lng}`;
       bookingHtml+=`<br><a href="${mapsLink}" target="_blank" style="color:var(--blue);font-weight:600;display:inline-flex;align-items:center;gap:4px;margin-top:6px">&#128205; Delivery Location${data.location_address?': '+esc(data.location_address):''}</a>`;
@@ -870,6 +925,24 @@ async function loadBooking(phone){
     bar.style.display='none';
     document.getElementById('ipBooking').textContent='No bookings found';
   }
+  renderAttention();
+}
+
+// Admin only. Marks the latest booking cancelled in both status columns.
+async function cancelBooking(){
+  if(currentRole!=='admin'){toast('Only admin can cancel a booking');return;}
+  if(!currentBooking){toast('No booking found for this customer');return;}
+  const b=currentBooking;
+  if(!confirm(`Cancel booking ${b.reference_number||b.id}?\n\nThis marks the booking as cancelled. It does NOT refund money or message the customer.`))return;
+  const{error}=await db.from('bookings').update({fulfillment_status:'cancelled',operator_status:'cancelled'}).eq('id',b.id);
+  if(error){toast('Failed: '+error.message);return;}
+  if(currentConv){
+    await db.from('conversations').update({needs_attention:false}).eq('id',currentConv.id);
+    currentConv.needs_attention=false;
+  }
+  toast('Booking cancelled');
+  await loadBooking(currentConv?.customer_phone);
+  await loadConvs();
 }
 
 function renderMsgs(msgs){
@@ -1015,7 +1088,7 @@ function showMsgMenu(e,msg){
     ${msg.media_url?`<div class="ctx-item" onclick="dlMedia('${msg.media_url}','${msg.media_name||'file'}')">&#11015; Download</div>`:''}
     <div class="ctx-sep"></div>
     <div class="ctx-item" onclick="showMsgInfo('${msg.status||''}','${msg.sent_at||''}')">&#8505; Info</div>
-    ${currentRole==='admin'?`<div class="ctx-sep"></div><div class="ctx-item danger" onclick="deleteMsg('${msg.id}')">&#128465; Delete Message</div>`:''}
+    ${currentRole==='admin'?`<div class="ctx-sep"></div><div class="ctx-item danger" onclick="deleteMsg('${msg.id}')">&#128465; Delete for me</div>`:''}
   `;
   menu.style.display='block';
   const x=Math.min(e.clientX,window.innerWidth-185);
@@ -1072,59 +1145,99 @@ function showRxBar(e,msgId){
   bar.style.left=Math.min(e.clientX,window.innerWidth-250)+'px';
   bar.style.top=Math.max(e.clientY-72,8)+'px';
 }
+// Sends a real WhatsApp reaction. Saved in the inbox only after WhatsApp accepts it.
 async function addReaction(emoji){
   closeMenus();
   if(!ctxMsgId||!currentConv)return;
-  const{data:m}=await db.from('messages').select('reactions').eq('id',ctxMsgId).single();
-  const rx=m?.reactions||{};
-  if(rx['agent']===emoji){delete rx['agent'];}else{rx['agent']=emoji;}
-  await db.from('messages').update({reactions:rx}).eq('id',ctxMsgId);
-  // live update handled by realtime UPDATE subscription
+  if(!currentWindowOpen){toast('24-hour window is closed. Send a template first.');return;}
+  const{data:m}=await db.from('messages').select('wa_message_id,reactions,direction').eq('id',ctxMsgId).single();
+  if(!m){toast('Message not found');return;}
+  if(m.direction==='outbound'){toast('WhatsApp only allows reacting to the customer\'s messages');return;}
+  if(!m.wa_message_id){toast('This message has no WhatsApp id, cannot react');return;}
+  const had=(m.reactions||{})['agent'];
+  const sendEmoji=(had===emoji)?'':emoji; // tapping the same emoji again removes it
+  try{
+    const res=await fetch(SEND_URL,{method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${SB_ANON}`},
+      body:JSON.stringify({
+        to:currentConv.wa_contact_id||toWaId(currentConv.customer_phone),
+        reaction_to_wa_message_id:m.wa_message_id,
+        reaction_emoji:sendEmoji,
+        reaction_db_message_id:ctxMsgId,
+      })});
+    if(!res.ok){const e=await res.json().catch(()=>({}));toast('Reaction not sent: '+(e.error||'error'));return;}
+    // bubble updates through the realtime UPDATE subscription
+  }catch(err){toast('Network error, reaction not sent');}
 }
 
-function startForward(id){
+async function startForward(id){
   closeMenus();
   fwdMsgId=id;
+  // Who can receive a free-form message right now? (customer wrote in the last 24h)
+  const cutoff=new Date(Date.now()-24*3600*1000).toISOString().slice(0,19);
+  const{data:recent}=await db.from('messages').select('conversation_id')
+    .eq('direction','inbound').gte('sent_at',cutoff);
+  const openIds=new Set((recent||[]).map(r=>r.conversation_id));
   document.getElementById('fwdList').innerHTML=allConvs
     .filter(c=>c.id!==currentConv?.id)
-    .map(c=>`<label class="fwd-item">
-      <input type="checkbox" data-id="${c.id}" style="accent-color:var(--teal)"/>
+    .map(c=>{
+      const ok=openIds.has(c.id);
+      return `<label class="fwd-item${ok?'':' disabled'}">
+      <input type="checkbox" data-id="${c.id}" ${ok?'':'disabled'} style="accent-color:var(--teal)"/>
       <div class="conv-avatar av${(c.customer_phone?.charCodeAt(0)||0)%8}" style="width:36px;height:36px;font-size:13px">
         ${(c.customer_name||c.customer_phone||'?').charAt(0).toUpperCase()}
       </div>
       <span style="font-size:13.5px">${esc(c.customer_name||c.customer_phone)}</span>
-    </label>`).join('');
+      ${ok?'':'<span class="fwd-note">24h closed</span>'}
+    </label>`;}).join('');
   openModal('fwdModal');
 }
+// Sends the message to each chosen customer through send-whatsapp-reply (real WhatsApp send)
 async function doForward(){
-  closeModal('fwdModal');
   if(!fwdMsgId)return;
-  const{data:orig}=await db.from('messages').select('*').eq('id',fwdMsgId).single();
-  if(!orig)return;
   const targets=[...document.querySelectorAll('#fwdList input:checked')].map(i=>i.dataset.id);
+  if(!targets.length){toast('Choose at least one contact');return;}
+  closeModal('fwdModal');
+  const{data:orig}=await db.from('messages').select('*').eq('id',fwdMsgId).single();
+  if(!orig){toast('Message not found');return;}
+  const sendableMedia=['image','video','audio','document','sticker'];
+  const hasMedia=orig.media_url&&sendableMedia.includes(orig.media_type);
+  if(!hasMedia&&!(orig.message||'').trim()){toast('Nothing to forward in this message');return;}
+  toast(`Forwarding to ${targets.length} chat${targets.length>1?'s':''}...`);
+  let okN=0;const failed=[];
   for(const cid of targets){
-    await db.from('messages').insert({
-      conversation_id:cid,direction:'outbound',
-      message:orig.message,message_type:orig.message_type||'text',
-      media_type:orig.media_type,media_url:orig.media_url,media_name:orig.media_name,
-      is_forwarded:true,reactions:{},status:'sent',sent_at:new Date().toISOString(),
-    });
-    await db.from('conversations').update({
-      last_message:orig.message||`[${orig.media_type||'media'}]`,
-      last_message_time:new Date().toISOString(),
-    }).eq('id',cid);
+    const c=allConvs.find(x=>x.id===cid);
+    const label=c?.customer_name||c?.customer_phone||'contact';
+    const payload={
+      conversation_id:cid,
+      to:c?.wa_contact_id||toWaId(c?.customer_phone),
+      message:orig.message||'',
+      is_forwarded:true,
+    };
+    if(hasMedia){
+      payload.media_type=orig.media_type;payload.media_url=orig.media_url;
+      payload.media_name=orig.media_name;payload.media_mime=orig.media_mime;
+    }
+    try{
+      const res=await fetch(SEND_URL,{method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':`Bearer ${SB_ANON}`},
+        body:JSON.stringify(payload)});
+      if(res.ok){okN++;}
+      else{const e=await res.json().catch(()=>({}));failed.push(`${label}: ${e.error||'send failed'}`);}
+    }catch(err){failed.push(`${label}: network error`);}
   }
-  toast(`Forwarded to ${targets.length} chat${targets.length>1?'s':''}`);
+  if(!failed.length)toast(`Forwarded to ${okN} chat${okN>1?'s':''} ✓`);
+  else alert(`Forwarded to ${okN}. Not sent:\n\n${failed.join('\n')}\n\nWhatsApp only allows free messages within 24 hours of the customer's last message. Send them a template first.`);
 }
 function copyMsg(text){closeMenus();navigator.clipboard.writeText(text).then(()=>toast('Copied!'));}
 async function deleteMsg(id){
   closeMenus();
-  if(!confirm('Permanently delete this message? This cannot be undone.'))return;
+  if(!confirm('Delete this message from the inbox only?\n\nThe customer will still see it on WhatsApp (WhatsApp does not allow unsending). This cannot be undone.'))return;
   const{error}=await db.from('messages').delete().eq('id',id);
   if(error){toast('Failed to delete: '+error.message);return;}
   const row=document.querySelector(`.msg-row[data-id="${id}"]`);
   if(row)row.remove();
-  toast('Message deleted permanently');
+  toast('Deleted from inbox (customer still sees it)');
 }
 function dlMedia(url,name){closeMenus();const a=document.createElement('a');a.href=url;a.download=name;a.target='_blank';a.click();}
 function showMsgInfo(status,sentAt){closeMenus();const d=sentAt?toUTC(sentAt).toLocaleString('en-IN',{timeZone:'Asia/Kolkata'}):'—';toast(`Status: ${status||'—'}  |  ${d}`);}
@@ -1264,8 +1377,11 @@ function insertEmoji(em){const i=document.getElementById('msgInput');i.value+=em
 async function toggleResolve(){
   if(!currentConv)return;
   const ns=!currentConv.resolved;
-  await db.from('conversations').update({resolved:ns}).eq('id',currentConv.id);
+  const upd={resolved:ns};
+  if(ns)upd.needs_attention=false;
+  await db.from('conversations').update(upd).eq('id',currentConv.id);
   currentConv.resolved=ns;
+  if(ns){currentConv.needs_attention=false;renderAttention();}
   const rb=document.getElementById('resolveBtn');
   rb.style.background=ns?'#d1fae5':'';
   rb.title=ns?'Mark open':'Mark resolved';
@@ -1278,11 +1394,15 @@ async function createChat(){
   const name=document.getElementById('ncName').value.trim();
   const phone=document.getElementById('ncPhone').value.trim().replace(/\D/g,'');
   if(!phone){toast('Phone number is required');return;}
-  if(phone.length<10){toast('Enter a valid phone number');return;}
   if(!name){toast('Customer name is required');return;}
 
-  const phone10=phone.replace(/^91/,'');
-  let{data:existing}=await db.from('conversations').select('id').eq('customer_phone',phone10).maybeSingle();
+  // 10 digits, or 12 digits starting with 91. Nothing else is accepted.
+  if(!(phone.length===10||(phone.length===12&&phone.startsWith('91')))){toast('Enter a 10-digit mobile number');return;}
+  const phone10=to10(phone);
+  const wa_id=toWaId(phone10);
+  // Same lookup as the server: wa_contact_id = 91 + 10 digits (old rows also matched by 10-digit phone)
+  let{data:existing}=await db.from('conversations').select('id')
+    .or(`wa_contact_id.eq.${wa_id},customer_phone.eq.${phone10}`).limit(1).maybeSingle();
 
   if(existing){
     closeModal('newChatModal');
@@ -1294,7 +1414,6 @@ async function createChat(){
     return;
   }
 
-  const wa_id=phone.startsWith('91')?phone:'91'+phone;
   const{data:nc,error}=await db.from('conversations').insert({
     customer_name:name,
     customer_phone:phone10,
